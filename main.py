@@ -253,7 +253,7 @@ async def request_admin_change(message: types.Message):
     builder.button(text="Отмена")
 
     await message.answer(
-        f"⚠️ **Вы уверены?**\nТекущий ID: `{get_admin_id()}`\nНовый ID: `{new_id}`\n\n"
+        f"⚠️ Вы уверены?\nТекущий ID: {get_admin_id()}\nНовый ID: {new_id}\n\n"
         "После подтверждения вы потеряете доступ к боту",
         reply_markup=builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
     )
@@ -268,10 +268,11 @@ async def confirm_admin_change(message: types.Message):
         return
 
     new_id = pending_updates.pop(user_id)
+    os.environ["ADMIN_ID"] = new_id
     try:
         set_key('.env', "ADMIN_ID", new_id)
         await message.answer(
-            f"✅ **Успешно!**\nADMIN_ID изменен на `{new_id}`",
+            f"✅ Успешно!\nADMIN_ID изменен на {new_id}",
             reply_markup=types.ReplyKeyboardRemove()
         )
     except Exception as e:
