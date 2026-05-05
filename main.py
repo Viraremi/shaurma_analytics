@@ -4,6 +4,8 @@ import os
 # import psycopg2
 
 from datetime import datetime
+
+from aiogram.types import FSInputFile
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
@@ -203,6 +205,23 @@ async def send_photo_to_topic(message: types.Message, command: CommandObject):
         await message.answer("✅ Фото успешно отправлено в тему!")
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
+
+
+@dp.message(Command("get_data"))
+async def send_csv(message: types.Message):
+    # Указываем путь к файлу. Если он в корне, то просто имя файла.
+    file_path = "food_basket.csv"
+
+    try:
+        # Создаем объект файла для отправки
+        document = FSInputFile(file_path)
+
+        # Отправляем файл с подписью
+        await message.answer_document(
+            document
+        )
+    except Exception as e:
+        await message.answer(f"Ошибка при отправке файла: {e}")
 
 
 async def main():
