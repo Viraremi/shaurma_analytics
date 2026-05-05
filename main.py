@@ -6,12 +6,16 @@ import os
 from datetime import datetime
 
 from aiogram.types import FSInputFile
-from dotenv import load_dotenv
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from dotenv import load_dotenv, set_key
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandObject
 
 load_dotenv()
-ADMIN_ID = int(os.getenv('ADMIN_ID'))
+
+def get_admin_id():
+    return int(os.getenv("ADMIN_ID", 0))
+
 GROUP_ID = os.getenv('DEPARTAMENT_GROUP')
 TOPIC_ID = os.getenv('DEPARTAMENT_TOPIC')
 
@@ -103,7 +107,7 @@ def save_to_csv(results, date):
 active_poll = {}
 
 
-@dp.message(Command("shaurma"), F.from_user.id == ADMIN_ID)
+@dp.message(Command("shaurma"), F.from_user.id == get_admin_id())
 async def cmd_create_poll(message: types.Message):
     if active_poll:
         await message.answer("Уже есть активный опрос!")
@@ -140,7 +144,7 @@ async def handle_poll_answer(poll_answer: types.PollAnswer):
         }
 
 
-@dp.message(Command("stop_shaurma"), F.from_user.id == ADMIN_ID)
+@dp.message(Command("stop_shaurma"), F.from_user.id == get_admin_id())
 async def cmd_stop_poll(message: types.Message):
     if not active_poll:
         await message.answer("Нет активных опросов.")
@@ -153,7 +157,7 @@ async def cmd_stop_poll(message: types.Message):
     await message.answer("Опрос закрыт")
 
     await bot.forward_message(
-        chat_id=ADMIN_ID,
+        chat_id=get_admin_id(),
         from_chat_id=GROUP_ID,
         message_id=active_poll["message_id"]
     )
@@ -173,7 +177,7 @@ async def get_my_id(message: types.Message):
     await message.answer(f"User Name: {message.from_user.full_name}\nUser ID: {message.from_user.id}")
 
 
-@dp.message(Command("send"), F.from_user.id == ADMIN_ID)
+@dp.message(Command("send"), F.from_user.id == get_admin_id())
 async def send_to_topic(message: types.Message, command: CommandObject):
     if not command.args:
         return await message.answer("Использование: /send Ваш текст")
@@ -189,7 +193,7 @@ async def send_to_topic(message: types.Message, command: CommandObject):
         await message.answer(f"❌ Ошибка при отправке: {e}")
 
 
-@dp.message(F.photo, Command("sendpic"), F.from_user.id == ADMIN_ID)
+@dp.message(F.photo, Command("sendpic"), F.from_user.id == get_admin_id())
 async def send_photo_to_topic(message: types.Message, command: CommandObject):
     photo_id = message.photo[-1].file_id
     # Текст после команды /sendpic
@@ -222,6 +226,62 @@ async def send_csv(message: types.Message):
         )
     except Exception as e:
         await message.answer(f"Ошибка при отправке файла: {e}")
+
+
+# Временное хранилище для ожидающих подтверждения ID (в памяти)
+# В продакшене лучше использовать FSM (Finite State Machine)
+pending_updates = {}
+
+
+@dp.message(F.text.startswith("Абоба"))
+async def request_admin_change(message: types.Message):
+    if message.from_user.id != get_admin_id():
+        await message.answer("Забудь это слово")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.answer("Добавь id после слова")
+        return
+
+    new_id = parts[1]
+    pending_updates[message.from_user.id] = new_id
+
+    # Создаем кнопку подтверждения
+    builder = ReplyKeyboardBuilder()
+    builder.button(text=f"Да, сменить на {new_id}")
+    builder.button(text="Отмена")
+
+    await message.answer(
+        f"⚠️ **Вы уверены?**\nТекущий ID: `{get_admin_id()}`\nНовый ID: `{new_id}`\n\n"
+        "После подтверждения вы потеряете доступ к боту",
+        reply_markup=builder.as_markup(resize_keyboard=True, one_time_keyboard=True)
+    )
+
+
+@dp.message(F.text.startswith("Да, сменить на"))
+async def confirm_admin_change(message: types.Message):
+    user_id = message.from_user.id
+
+    if user_id not in pending_updates:
+        await message.answer("Сначала введите команду обновления")
+        return
+
+    new_id = pending_updates.pop(user_id)
+    try:
+        set_key('.env', "ADMIN_ID", new_id)
+        await message.answer(
+            f"✅ **Успешно!**\nADMIN_ID изменен на `{new_id}`",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+    except Exception as e:
+        await message.answer(f"❌ Ошибка записи: {e}")
+
+
+@dp.message(F.text == "Отмена")
+async def cancel_update(message: types.Message):
+    pending_updates.pop(message.from_user.id, None)
+    await message.answer("Действие отменено", reply_markup=types.ReplyKeyboardRemove())
 
 
 async def main():
