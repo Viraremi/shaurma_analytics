@@ -14,7 +14,7 @@ from aiogram.filters import Command, CommandObject
 load_dotenv()
 
 def get_admin_id():
-    return int(os.getenv("ADMIN_ID", 0))
+    return int(os.getenv("ADMIN_ID"))
 
 GROUP_ID = os.getenv('DEPARTAMENT_GROUP')
 TOPIC_ID = os.getenv('DEPARTAMENT_TOPIC')
@@ -196,7 +196,7 @@ async def send_to_topic(message: types.Message, command: CommandObject):
 @dp.message(F.photo, Command("sendpic"), F.from_user.id == get_admin_id())
 async def send_photo_to_topic(message: types.Message, command: CommandObject):
     photo_id = message.photo[-1].file_id
-    # Текст после команды /sendpic
+    # Текст после команды
     description = command.args if command.args else ""
 
     try:
@@ -213,14 +213,10 @@ async def send_photo_to_topic(message: types.Message, command: CommandObject):
 
 @dp.message(Command("get_data"))
 async def send_csv(message: types.Message):
-    # Указываем путь к файлу. Если он в корне, то просто имя файла.
     file_path = "food_basket.csv"
 
     try:
-        # Создаем объект файла для отправки
         document = FSInputFile(file_path)
-
-        # Отправляем файл с подписью
         await message.answer_document(
             document
         )
@@ -228,12 +224,8 @@ async def send_csv(message: types.Message):
         await message.answer(f"Ошибка при отправке файла: {e}")
 
 
-# Временное хранилище для ожидающих подтверждения ID (в памяти)
-# В продакшене лучше использовать FSM (Finite State Machine)
 pending_updates = {}
-
-
-@dp.message(F.text.startswith("Абоба"))
+@dp.message(F.text.startswith(os.getenv("ADMIN_WORD")))
 async def request_admin_change(message: types.Message):
     if message.from_user.id != get_admin_id():
         await message.answer("Забудь это слово")
